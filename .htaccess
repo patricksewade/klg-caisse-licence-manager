@@ -1,0 +1,5 @@
+<IfModule mod_headers.c>
+  Header set X-Robots-Tag "noindex, nofollow"
+</IfModule>
+# Désactive l’indexation des fichiers d’un dossier
+Options -Indexes

@@ -1,0 +1,2 @@
+downloads/latest-app-version/*
+!downloads/latest-app-version/.gitkeep

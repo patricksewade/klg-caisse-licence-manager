@@ -1,0 +1,2 @@
+# Bloquer l'accès direct aux dossiers sensibles
+Deny from all

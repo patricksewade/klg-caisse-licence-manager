@@ -1,5 +1,3 @@
-<IfModule mod_headers.c>
-  Header set X-Robots-Tag "noindex, nofollow"
-</IfModule>
-# Désactive l’indexation des fichiers d’un dossier
+# Bloquer l'accès direct à tout sauf public/
+# (Protection de src/, config/, keys/)
 Options -Indexes

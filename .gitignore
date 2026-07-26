@@ -1,2 +1,17 @@
+# Dossier des clés de sécurité (Ne jamais versionner les fichiers .pem)
+keys/*
+!keys/.gitkeep
+!keys/.htaccess
+
+# Fichiers de configuration sensibles
+config/database.php
+
+# Fichiers de téléchargement (mises à jour de l'application)
 downloads/latest-app-version/*
 !downloads/latest-app-version/.gitkeep
+
+# IDE et OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

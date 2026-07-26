@@ -77,17 +77,26 @@ klg_layout_header('Toutes les licences V2', 'list_licences', 'Parc complet des l
                             <br><span class="text-muted"><?= htmlspecialchars($lic['entreprise']) ?></span>
                         <?php endif; ?>
                     </td>
-                    <td><span class="badge badge--v2"><?= htmlspecialchars($lic['type_licence']) ?></span></td>
+                    <td>
+                        <?php if ((int)($lic['version'] ?? 2) === 1): ?>
+                            <span class="badge badge--v1">V1</span>
+                        <?php endif; ?>
+                        <span class="badge badge--v2"><?= htmlspecialchars($lic['type_licence']) ?></span>
+                    </td>
                     <td><?= klg_badge_statut_list($lic['statut']) ?></td>
                     <td class="text-muted">
                         <?= !empty($lic['date_expiration']) ? date('d/m/Y', strtotime($lic['date_expiration'])) : '<em>Perpétuelle</em>' ?>
                     </td>
                     <td class="text-muted"><?= date('d/m/Y', strtotime($lic['date_emission'])) ?></td>
                     <td>
-                        <?php if ($lic['statut'] === 'ACTIVE'): ?>
-                            <a href="?page=revoke_licence&cle=<?= urlencode($lic['cle_licence']) ?>" class="btn btn--sm btn--ghost">Révoquer</a>
+                        <?php if ((int)($lic['version'] ?? 2) === 2): ?>
+                            <?php if ($lic['statut'] === 'ACTIVE'): ?>
+                                <a href="?page=revoke_licence&cle=<?= urlencode($lic['cle_licence']) ?>" class="btn btn--sm btn--ghost">Révoquer</a>
+                            <?php endif; ?>
+                            <a href="?page=create_licence&client_id=<?= (int)$lic['client_id'] ?>" class="btn btn--sm btn--primary">Renouveler</a>
+                        <?php else: ?>
+                            <em class="text-muted">Lecture seule</em>
                         <?php endif; ?>
-                        <a href="?page=create_licence&client_id=<?= (int)$lic['client_id'] ?>" class="btn btn--sm btn--primary">Renouveler</a>
                     </td>
                 </tr>
                 <?php endforeach; ?>

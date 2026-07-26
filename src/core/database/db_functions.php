@@ -159,16 +159,43 @@ function klg_db_inserer_licence_v2(
 function klg_db_get_all_licences(?string $filtre_statut = null): array
 {
     $db  = klg_get_db();
-    $sql = 'SELECT l.*, c.nom_prenom, c.entreprise, c.telephone, c.email
-            FROM klg_c_lm_licences l
-            INNER JOIN klg_c_lm_clients c ON c.id = l.client_id';
+    
+    // Requête pour les licences V2
+    $sql_v2 = "SELECT l.id, l.client_id, l.cle_licence, l.version, l.type_licence, l.statut, l.date_expiration, l.date_emission, l.features,
+                      c.nom_prenom, c.entreprise, c.telephone, c.email
+               FROM klg_c_lm_licences l
+               INNER JOIN klg_c_lm_clients c ON c.id = l.client_id";
+               
+    // Requête pour les licences V1
+    $sql_v1 = "SELECT 0 as id, 0 as client_id, cle_licence, 1 as version, type_licence, 
+                      CASE 
+                          WHEN licence_is_locked = '1' THEN 'REVOQUEE'
+                          WHEN type_licence = 'PERPETUELLE' THEN 'ACTIVE'
+                          WHEN date_expiration_licence IS NOT NULL AND date_expiration_licence != '0000-00-00 00:00:00' AND date_expiration_licence < NOW() THEN 'EXPIREE'
+                          ELSE 'ACTIVE'
+                      END as statut, 
+                      CASE 
+                          WHEN type_licence = 'PERPETUELLE' OR date_expiration_licence = '0000-00-00 00:00:00' THEN NULL 
+                          ELSE date_expiration_licence 
+                      END as date_expiration, 
+                      date_create as date_emission, '{}' as features,
+                      nom_prenom_titulaire_licence as nom_prenom, '' as entreprise, telephone_titulaire_licence as telephone, email_titulaire_licence as email
+               FROM cles_licence";
 
+    // Clause WHERE commune si filtre
+    $where = "";
     if ($filtre_statut !== null) {
         $filtre_statut_esc = mysqli_real_escape_string($db, $filtre_statut);
-        $sql .= " WHERE l.statut = '" . $filtre_statut_esc . "'";
+        $where = " WHERE statut = '" . $filtre_statut_esc . "'";
     }
 
-    $sql .= ' ORDER BY l.date_emission DESC';
+    $sql = "SELECT * FROM (
+                $sql_v2
+                UNION ALL
+                $sql_v1
+            ) AS all_licences
+            $where
+            ORDER BY date_emission DESC";
 
     $result = mysqli_query($db, $sql);
     if (!$result) {
@@ -314,20 +341,36 @@ function klg_db_get_licences_expirant_bientot(int $jours = 30): array
     $limit = date('Y-m-d H:i:s', strtotime('+' . $jours . ' days'));
     $now   = klg_now();
 
-    $sql = "SELECT l.*, c.nom_prenom, c.entreprise, c.email
-            FROM klg_c_lm_licences l
-            INNER JOIN klg_c_lm_clients c ON c.id = l.client_id
-            WHERE l.statut = 'ACTIVE'
-              AND l.date_expiration IS NOT NULL
-              AND l.date_expiration BETWEEN ? AND ?
-            ORDER BY l.date_expiration ASC";
+    $sql_v2 = "SELECT l.cle_licence, l.type_licence, l.date_expiration, l.client_id, l.version,
+                      c.nom_prenom
+               FROM klg_c_lm_licences l
+               INNER JOIN klg_c_lm_clients c ON c.id = l.client_id
+               WHERE l.statut = 'ACTIVE'
+                 AND l.date_expiration IS NOT NULL
+                 AND l.date_expiration BETWEEN ? AND ?";
+
+    $sql_v1 = "SELECT cle_licence, type_licence, date_expiration_licence as date_expiration, 0 as client_id, 1 as version,
+                      nom_prenom_titulaire_licence as nom_prenom
+               FROM cles_licence
+               WHERE (licence_is_locked != '1' OR licence_is_locked IS NULL)
+                 AND type_licence != 'PERPETUELLE'
+                 AND date_expiration_licence IS NOT NULL
+                 AND date_expiration_licence != '0000-00-00 00:00:00'
+                 AND date_expiration_licence BETWEEN ? AND ?";
+
+    $sql = "SELECT * FROM (
+                $sql_v2
+                UNION ALL
+                $sql_v1
+            ) AS expirations
+            ORDER BY date_expiration ASC";
 
     $stmt = mysqli_prepare($db, $sql);
     if (!$stmt) {
         return [];
     }
 
-    mysqli_stmt_bind_param($stmt, 'ss', $now, $limit);
+    mysqli_stmt_bind_param($stmt, 'ssss', $now, $limit, $now, $limit);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
 
@@ -360,7 +403,27 @@ function klg_db_get_statistiques(): array
     ];
 
     // Compter les licences V2 par statut
-    $result = mysqli_query($db, 'SELECT statut, COUNT(*) as nb FROM klg_c_lm_licences GROUP BY statut');
+    $sql_v2 = "SELECT statut, COUNT(*) as nb FROM klg_c_lm_licences GROUP BY statut";
+    
+    // Compter les licences V1 par statut calculé
+    $sql_v1 = "SELECT 
+                  CASE 
+                      WHEN licence_is_locked = '1' THEN 'REVOQUEE'
+                      WHEN type_licence = 'PERPETUELLE' THEN 'ACTIVE'
+                      WHEN date_expiration_licence IS NOT NULL AND date_expiration_licence != '0000-00-00 00:00:00' AND date_expiration_licence < NOW() THEN 'EXPIREE'
+                      ELSE 'ACTIVE'
+                  END as statut, 
+                  COUNT(*) as nb 
+               FROM cles_licence 
+               GROUP BY statut";
+
+    $sql = "SELECT statut, SUM(nb) as nb FROM (
+                $sql_v2
+                UNION ALL
+                $sql_v1
+            ) as all_stats GROUP BY statut";
+
+    $result = mysqli_query($db, $sql);
     if ($result) {
         while ($row = mysqli_fetch_assoc($result)) {
             $stats['total_licences'] += (int) $row['nb'];
@@ -371,7 +434,7 @@ function klg_db_get_statistiques(): array
         }
     }
 
-    // Compter les clients
+    // Compter les clients (seulement V2)
     $result2 = mysqli_query($db, 'SELECT COUNT(*) as nb FROM klg_c_lm_clients');
     if ($result2) {
         $row2 = mysqli_fetch_assoc($result2);

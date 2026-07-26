@@ -93,10 +93,19 @@ klg_layout_header('Tableau de bord', 'dashboard', 'Vue d\'ensemble du parc de li
                 <tr>
                     <td><code><?= htmlspecialchars($alerte['cle_licence']) ?></code></td>
                     <td><?= htmlspecialchars($alerte['nom_prenom']) ?></td>
-                    <td><?= htmlspecialchars($alerte['type_licence']) ?></td>
+                    <td>
+                        <?php if ((int)($alerte['version'] ?? 2) === 1): ?>
+                            <span class="badge badge--v1">V1</span>
+                        <?php endif; ?>
+                        <?= htmlspecialchars($alerte['type_licence']) ?>
+                    </td>
                     <td><?= !empty($alerte['date_expiration']) ? date('d/m/Y', strtotime($alerte['date_expiration'])) : '—' ?></td>
                     <td>
-                        <a href="?page=create_licence&client_id=<?= (int)$alerte['client_id'] ?>" class="btn btn--sm btn--primary">Renouveler</a>
+                        <?php if ((int)($alerte['version'] ?? 2) === 2): ?>
+                            <a href="?page=create_licence&client_id=<?= (int)$alerte['client_id'] ?>" class="btn btn--sm btn--primary">Renouveler</a>
+                        <?php else: ?>
+                            <a href="?page=create_licence" class="btn btn--sm btn--orange">Migrer V2</a>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -133,7 +142,12 @@ klg_layout_header('Tableau de bord', 'dashboard', 'Vue d\'ensemble du parc de li
                     <tr>
                         <td><code><?= htmlspecialchars($lic['cle_licence']) ?></code></td>
                         <td><?= htmlspecialchars($lic['nom_prenom']) ?></td>
-                        <td><?= klg_badge_statut($lic['statut']) ?></td>
+                        <td>
+                            <?php if ((int)($lic['version'] ?? 2) === 1): ?>
+                                <span class="badge badge--v1">V1</span>
+                            <?php endif; ?>
+                            <?= klg_badge_statut($lic['statut']) ?>
+                        </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
